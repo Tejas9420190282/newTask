@@ -1,6 +1,6 @@
 
 // TradingChart.jsx
-
+/* 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart, CandlestickSeries } from "lightweight-charts";
 
@@ -110,7 +110,7 @@ const TradingChart = () => {
     }
 
     return result;
-  } */
+  } *
 
     function groupCandles(data, size) {
   const result = [];
@@ -138,7 +138,7 @@ const TradingChart = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-8">
-      {/* Header */}
+      {/* Header *
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">XAUUSD</h1>
@@ -150,7 +150,7 @@ const TradingChart = () => {
         </div>
       </div>
 
-      {/* Timeframe Buttons */}
+      {/* Timeframe Buttons *
       <div className="flex gap-4 mb-6">
         {["5m", "15m", "1h"].map((tf) => (
           <button
@@ -167,7 +167,7 @@ const TradingChart = () => {
         ))}
       </div>
 
-      {/*  Chart Card  */}
+      {/*  Chart Card  *
       <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-4">
         <div ref={chartContainer}></div>
       </div>
@@ -176,5 +176,166 @@ const TradingChart = () => {
 };
 
 export default TradingChart;
+ */ 
  
- 
+import React, { useEffect, useRef, useState } from "react";
+import { createChart, CandlestickSeries } from "lightweight-charts";
+
+const TradingChart = () => {
+  const containerRef = useRef(null);
+  const chartRef = useRef(null);
+  const seriesRef = useRef(null);
+
+  const [data, setData] = useState([]);
+  const [timeframe, setTimeframe] = useState("5m");
+  const [price, setPrice] = useState(null);
+
+  // ✅ 1️⃣ Create Chart (Responsive)
+  useEffect(() => {
+    chartRef.current = createChart(containerRef.current, {
+      width: containerRef.current.clientWidth,
+      height: 400,
+      layout: {
+        background: { color: "#0f172a" },
+        textColor: "#cbd5e1",
+      },
+      grid: {
+        vertLines: { color: "#1e293b" },
+        horzLines: { color: "#1e293b" },
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
+
+    seriesRef.current =
+      chartRef.current.addSeries(CandlestickSeries);
+
+    // 🔥 Auto resize on screen change
+    const handleResize = () => {
+      chartRef.current.applyOptions({
+        width: containerRef.current.clientWidth,
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chartRef.current.remove();
+    };
+  }, []);
+
+  // ✅ 2️⃣ Fetch JSON Data
+  useEffect(() => {
+    fetch("/csvjson.json")
+      .then((res) => res.json())
+      .then((json) => setData(json));
+  }, []);
+
+  // ✅ 3️⃣ Group Function
+  const groupCandles = (array, size) => {
+    const result = [];
+
+    for (let i = 0; i < array.length; i += size) {
+      const group = array.slice(i, i + size);
+      if (group.length < size) break;
+
+      const first = group[0];
+      const last = group[group.length - 1];
+
+      result.push({
+        "<DATE>": first["<DATE>"],
+        "<TIME>": first["<TIME>"],
+        "<OPEN>": first["<OPEN>"],
+        "<HIGH>": Math.max(...group.map(c => c["<HIGH>"])),
+        "<LOW>": Math.min(...group.map(c => c["<LOW>"])),
+        "<CLOSE>": last["<CLOSE>"],
+      });
+    }
+
+    return result;
+  };
+
+  // ✅ 4️⃣ Update Chart When Timeframe Changes
+  useEffect(() => {
+    if (!data.length) return;
+
+    let processed;
+
+    if (timeframe === "5m") processed = data;
+    if (timeframe === "15m") processed = groupCandles(data, 3);
+    if (timeframe === "1h") processed = groupCandles(data, 12);
+
+    const formatted = processed.map((item) => {
+      const dateTime =
+        item["<DATE>"].replace(/\./g, "-") +
+        "T" +
+        item["<TIME>"];
+
+      return {
+        time: Math.floor(new Date(dateTime).getTime() / 1000),
+        open: item["<OPEN>"],
+        high: item["<HIGH>"],
+        low: item["<LOW>"],
+        close: item["<CLOSE>"],
+      };
+    });
+
+    seriesRef.current.setData(formatted);
+
+    const last = formatted[formatted.length - 1];
+    if (last) setPrice(last.close);
+
+  }, [timeframe, data]);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white px-4 sm:px-8 py-6">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-xl sm:text-3xl font-bold">
+            XAUUSD
+          </h1>
+          <p className="text-slate-400 text-sm">
+            Gold vs US Dollar
+          </p>
+        </div>
+
+        <div className="text-2xl sm:text-3xl font-bold text-green-400">
+          {price || "Loading..."}
+        </div>
+      </div>
+
+      {/* Timeframe Buttons */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        {["5m", "15m", "1h"].map((tf) => (
+          <button
+            key={tf}
+            onClick={() => setTimeframe(tf)}
+            className={`px-4 py-2 rounded-lg text-sm sm:text-base transition ${
+              timeframe === tf
+                ? "bg-blue-600"
+                : "bg-slate-800 hover:bg-slate-700"
+            }`}
+          >
+            {tf}
+          </button>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div className="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 p-2 sm:p-4">
+        <div
+          ref={containerRef}
+          className="w-full h-[300px] sm:h-[400px] lg:h-[500px]"
+        ></div>
+      </div>
+
+    </div>
+  );
+};
+
+export default TradingChart;
